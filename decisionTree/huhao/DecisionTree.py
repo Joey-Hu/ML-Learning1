@@ -1,4 +1,6 @@
 import operator
+from math import log
+import huhao.decisionTreePlot as dtplot
 
 
 def majorityCnt(classList):
@@ -19,7 +21,26 @@ def majorityCnt(classList):
 
 
 def calcShannonEnt(dataSet):
-    pass
+    '''
+    计算给定数据集的熵
+    :param dataSet:
+    :return: 返回每一组feature下的某个分类下，熵的信息期望
+    '''
+    numEntries = len(dataSet)
+
+    # 计算分类标签label出现的次数
+    labelCounts = {}
+    for featVec in dataSet:
+        currentLabel = featVec[-1]
+        if currentLabel not in labelCounts.keys():
+            labelCounts[currentLabel] = 0
+        labelCounts[currentLabel] += 1
+
+        shannonEnt = 0.0
+        for key in labelCounts:
+            prob = float(labelCounts[key]) / numEntries
+            shannonEnt -= prob * log(prob, 2)
+    return shannonEnt
 
 
 def chooseBestFeatureToSplit(dataSet):
@@ -45,14 +66,36 @@ def chooseBestFeatureToSplit(dataSet):
 
         for value in uniqueVals:
             subDataSet = splitDataSet(dataSet, i, value)
-            prob = len(subDataSet)/float(len(dataSet))
+            prob = len(subDataSet) / float(len(dataSet))
+            newEntropy += prob * calcShannonEnt(subDataSet)
 
+        infoGain = baseEntropy - newEntropy
+        print('infoGain=', infoGain, 'bestFeature=', i, baseEntropy, newEntropy)
 
-
+        if (infoGain > bestInfoGain):
+            bestInfoGain = infoGain
+            bestFeature = i
+    return bestFeature
 
 
 def splitDataSet(dataSet, index, value):
-    pass
+    '''
+    划分数据集
+    splitDataSet(通过遍历dataSet数据集，求出index对应的colnum列的值为value的行)
+        就是依据index列进行分类，如果index列的数据等于 value的时候，就要将 index 划分到我们创建的新的数据集中
+
+    :param dataSet: 待划分的数据集
+    :param index: 划分数据集的特征
+    :param value: 需要返回的特征的值
+    :return:
+    '''
+    retDataSet = []
+    for featVec in dataSet:
+        if featVec[index] == value:
+            reducedFeatVec = featVec[:index]
+            reducedFeatVec.extend(featVec[index + 1:])
+            retDataSet.append(reducedFeatVec)
+    return retDataSet
 
 
 def createTree(dataSet, labels):
@@ -67,7 +110,7 @@ def createTree(dataSet, labels):
     # 终止条件1：所有类标签全部相同，直接返回该类标签
     if classList.count(classList[0]) == len(classList):
         return classList[0]
-        
+
     # 终止条件2：第二个停止条件：使用完了所有特征，仍然不能将数据集划分成仅包含唯一类别的分组。
     if len(dataSet[0]) == 1:
         return majorityCnt(classList)
@@ -78,7 +121,7 @@ def createTree(dataSet, labels):
 
     # 初始化myTree
     myTree = {bestFeatureLabel: {}}
-    del(labels[bestFeature])
+    del (labels[bestFeature])
 
     # 取出最优类，以它为branch做分类
     featureValues = [example[bestFeature] for example in dataSet]
@@ -89,5 +132,66 @@ def createTree(dataSet, labels):
     return myTree
 
 
+def createDataSet():
+    # dataSet 前两列是特征，最后一列对应的是每条数据对应的分类标签
+    dataSet = [[1, 1, 'yes'],
+               [1, 1, 'yes'],
+               [1, 0, 'no'],
+               [0, 1, 'no'],
+               [0, 1, 'no']]
+    # dataSet = [['yes'],
+    #         ['yes'],
+    #         ['no'],
+    #         ['no'],
+    #         ['no']]
+    # labels  露出水面   脚蹼，注意：这里的labels是写的 dataSet 中特征的含义，并不是对应的分类标签或者说目标变量
+    labels = ['no surfacing', 'flippers']
+    # 返回
+    return dataSet, labels
 
-    
+
+def classify(inputTree, featLabels, testVec):
+    """
+    Desc:
+        对新数据进行分类
+    Args:
+        inputTree  -- 已经训练好的决策树模型
+        featLabels -- Feature标签对应的名称，不是目标变量
+        testVec    -- 测试输入的数据
+    Returns:
+        classLabel -- 分类的结果值，需要映射label才能知道名称
+    """
+    # 获取tree的根节点对于的key值
+    firstStr = list(inputTree.keys())[0]
+    # 通过key得到根节点对应的value
+    secondDict = inputTree[firstStr]
+    # 判断根节点名称获取根节点在label中的先后顺序，这样就知道输入的testVec怎么开始对照树来做分类
+    featIndex = featLabels.index(firstStr)
+    # 测试数据，找到根节点对应的label位置，也就知道从输入的数据的第几位来开始分类
+    key = testVec[featIndex]
+    valueOfFeat = secondDict[key]
+    print('+++', firstStr, 'xxx', secondDict, '---', key, '>>>', valueOfFeat)
+    # 判断分枝是否结束: 判断valueOfFeat是否是dict类型
+    if isinstance(valueOfFeat, dict):
+        classLabel = classify(valueOfFeat, featLabels, testVec)
+    else:
+        classLabel = valueOfFeat
+    return classLabel
+
+
+def fishTest():
+    '''
+    对动物是否是鱼类分类的测试函数，并将结果使用 matplotlib 画出来
+    :return: 
+    '''
+    myDat, labels = createDataSet()
+    import copy
+    myTree = createTree(myDat, copy.deepcopy(labels))
+    print(myTree)
+    print(classify(myTree, labels, [1, 1]))
+
+    dtplot.createPlot(myTree)
+
+
+if __name__ == "__main__":
+    fishTest()
